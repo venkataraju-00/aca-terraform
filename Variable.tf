@@ -1,5 +1,5 @@
 variable "key_vault_key_id" {
-  description = "(Versionless_ID) The Base ID of the Key Vault Key."
+  description = "(Versionless_ID) The Base ID of the Key Vault Key"
   type        = string
 }
 
