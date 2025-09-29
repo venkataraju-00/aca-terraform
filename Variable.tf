@@ -315,3 +315,238 @@ variable "additional_failover_locations" {
     error_message = "You can specify up to 3 additional failover locations."
   }
 }
+
+# Alert Configuration Variables
+variable "enable_alerts" {
+  description = "(Optional) Enable monitoring alerts for Cosmos DB. Defaults to true."
+  type        = bool
+  default     = true
+}
+
+variable "action_group_id" {
+  description = "(Optional) The ID of the action group to send alerts to. Required if alerts are enabled."
+  type        = string
+  default     = null
+}
+
+# Comprehensive alert configuration variable
+variable "cosmos_alerts" {
+  description = "(Optional) Map of Cosmos DB alert configurations with default values. Each alert can be customized or disabled."
+  type = map(object({
+    name             = string
+    description      = string
+    severity         = number
+    frequency        = string
+    window_size      = string
+    metric_namespace = string
+    metric_name      = string
+    aggregation      = string
+    operator         = string
+    threshold        = number
+    dimensions       = optional(map(list(string)))
+    enabled          = optional(bool, true)
+    condition        = optional(bool, true)
+  }))
+  default = {
+    high_ru_consumption = {
+      name             = "high-ru-consumption"
+      description      = "Alert when RU consumption is consistently high"
+      severity         = 2
+      frequency        = "PT5M"
+      window_size      = "PT15M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "TotalRequestUnits"
+      aggregation      = "Total"
+      operator         = "GreaterThan"
+      threshold        = 1000
+      dimensions       = null
+      enabled          = true
+      condition        = true
+    }
+    high_request_rate = {
+      name             = "high-request-rate"
+      description      = "Alert when request rate is unusually high"
+      severity         = 2
+      frequency        = "PT5M"
+      window_size      = "PT15M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "TotalRequests"
+      aggregation      = "Total"
+      operator         = "GreaterThan"
+      threshold        = 100
+      dimensions       = null
+      enabled          = true
+      condition        = true
+    }
+    throttling_errors = {
+      name             = "throttling-errors"
+      description      = "Alert when throttling errors (429) are detected"
+      severity         = 1
+      frequency        = "PT1M"
+      window_size      = "PT5M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "TotalRequests"
+      aggregation      = "Total"
+      operator         = "GreaterThan"
+      threshold        = 5
+      dimensions = {
+        StatusCode = ["429"]
+      }
+      enabled   = true
+      condition = true
+    }
+    server_errors = {
+      name             = "server-errors"
+      description      = "Alert when server errors (5xx) are detected"
+      severity         = 1
+      frequency        = "PT1M"
+      window_size      = "PT5M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "TotalRequests"
+      aggregation      = "Total"
+      operator         = "GreaterThan"
+      threshold        = 5
+      dimensions = {
+        StatusCode = ["500", "501", "502", "503", "504"]
+      }
+      enabled   = true
+      condition = true
+    }
+    high_latency = {
+      name             = "high-latency"
+      description      = "Alert when request latency is high"
+      severity         = 2
+      frequency        = "PT5M"
+      window_size      = "PT15M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "ServerSideLatency"
+      aggregation      = "Average"
+      operator         = "GreaterThan"
+      threshold        = 100
+      dimensions       = null
+      enabled          = true
+      condition        = true
+    }
+    high_storage = {
+      name             = "high-storage"
+      description      = "Alert when storage usage is approaching limits"
+      severity         = 2
+      frequency        = "PT15M"
+      window_size      = "PT30M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "DataUsage"
+      aggregation      = "Maximum"
+      operator         = "GreaterThan"
+      threshold        = 85899345920  # 80 GB in bytes
+      dimensions       = null
+      enabled          = true
+      condition        = true
+    }
+    high_index_usage = {
+      name             = "high-index-usage"
+      description      = "Alert when index usage is approaching limits"
+      severity         = 2
+      frequency        = "PT15M"
+      window_size      = "PT30M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "IndexUsage"
+      aggregation      = "Maximum"
+      operator         = "GreaterThan"
+      threshold        = 8589934592  # 8 GB in bytes
+      dimensions       = null
+      enabled          = true
+      condition        = true
+    }
+    high_document_count = {
+      name             = "high-document-count"
+      description      = "Alert when document count is approaching limits"
+      severity         = 2
+      frequency        = "PT15M"
+      window_size      = "PT30M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "DocumentCount"
+      aggregation      = "Maximum"
+      operator         = "GreaterThan"
+      threshold        = 1000000
+      dimensions       = null
+      enabled          = true
+      condition        = true
+    }
+    low_availability = {
+      name             = "low-availability"
+      description      = "Alert when service availability drops"
+      severity         = 1
+      frequency        = "PT1M"
+      window_size      = "PT5M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "ServiceAvailability"
+      aggregation      = "Average"
+      operator         = "LessThan"
+      threshold        = 99.9
+      dimensions       = null
+      enabled          = true
+      condition        = true
+    }
+    high_metadata_requests = {
+      name             = "high-metadata-requests"
+      description      = "Alert when metadata request rate is high"
+      severity         = 2
+      frequency        = "PT5M"
+      window_size      = "PT15M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "MetadataRequests"
+      aggregation      = "Total"
+      operator         = "GreaterThan"
+      threshold        = 50
+      dimensions       = null
+      enabled          = true
+      condition        = true
+    }
+    high_provisioned_throughput = {
+      name             = "high-provisioned-throughput"
+      description      = "Alert when provisioned throughput utilization is high"
+      severity         = 2
+      frequency        = "PT5M"
+      window_size      = "PT15M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "ProvisionedThroughput"
+      aggregation      = "Maximum"
+      operator         = "GreaterThan"
+      threshold        = 800
+      dimensions       = null
+      enabled          = true
+      condition        = true
+    }
+    autoscale_max_throughput = {
+      name             = "autoscale-max-throughput"
+      description      = "Alert when autoscale max throughput is reached"
+      severity         = 1
+      frequency        = "PT1M"
+      window_size      = "PT5M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "AutoscaleMaxThroughput"
+      aggregation      = "Maximum"
+      operator         = "GreaterThanOrEqual"
+      threshold        = 4000
+      dimensions       = null
+      enabled          = true
+      condition        = true
+    }
+    # Multi-region replication alert
+    replication_lag = {
+      name             = "replication-lag"
+      description      = "Alert when replication lag between regions is high"
+      severity         = 2
+      frequency        = "PT5M"
+      window_size      = "PT15M"
+      metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+      metric_name      = "ReplicationLatency"
+      aggregation      = "Average"
+      operator         = "GreaterThan"
+      threshold        = 1000
+      dimensions       = null
+      enabled          = true
+      condition        = false  # Will be evaluated dynamically based on multi-region setup
+    }
+  }
+}
