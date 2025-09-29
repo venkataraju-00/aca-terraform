@@ -55,3 +55,18 @@ output "pe_private_ip_address" {
   description = "SQL API Container IDs"
   value       = try(module.cosmos_private_endpoint[0].private_ip_address, null)
 }
+
+# Alert Outputs
+output "alert_ids" {
+  description = "Map of alert names to their resource IDs"
+  value = {
+    for key, alert in azurerm_monitor_metric_alert.cosmos_alerts : key => alert.id
+  }
+}
+
+output "alert_names" {
+  description = "Map of alert keys to their full resource names"
+  value = {
+    for key, alert in azurerm_monitor_metric_alert.cosmos_alerts : key => alert.name
+  }
+}

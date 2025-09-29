@@ -44,31 +44,29 @@ resource "azurerm_cosmosdb_account" "db" {
   kind                               = var.db_kind
   is_virtual_network_filter_enabled  = var.is_virtual_network_filter_enabled
   multiple_write_locations_enabled   = var.enable_multiple_write_locations
-  default_identity_type              = var.backup_type == "Continuous" ?
-  "UserAssignedIdentity=${var.use_cosmosdb_user_assigned_identity_id == var.cosmosdb_user_assigned_identity_id :
-  azurerm_user_assigned_identity.this[0].id}" : "FirstPartyIdentity"
+  default_identity_type              = var.backup_type == "Continuous" ? "UserAssignedIdentity=${var.use_cosmosdb_user_assigned_identity_id ? var.cosmosdb_user_assigned_identity_id :  azurerm_user_assigned_identity.this[0].id}" : "FirstPartyIdentity"
   tags                               = var.tags
   automatic_failover_enabled         = true                      # NT Policy - Should have autofailover enabled
   access_key_metadata_writes_enabled = false                     # NT Policy - Key based metadata write access should
-  public_network_access_enabled      = var.virtual_network_rule != null ?
+  public_network_access_enabled      = var.virtual_network_rule != null ? true : false
   local_authentication_disabled      = var.local_authentication_disabled
   key_vault_key_id                   = var.key_vault_key_id
   burst_capacity_enabled             = var.burst_capacity_enabled
-  analytics_storage_enabled          = var.analytical_storage_schema_type
 
   dynamic "analytical_storage" {
-    for_each = var.analytical_storage_schema_type ! = null ? [var.analytical_storage_schema_type] : []
+    for_each = var.analytical_storage_schema_type != null ? [var.analytical_storage_schema_type] : []
     content {
       schema_type = analytical_storage.value
     }
   }
-backup {
-  type                  = var.backup_type
-  tier                  = var.backup_type == "Continuous" ? var.backup_tier : null
-  interval_in_minutes   = var.backup_type == "Periodic" ? var.backup_interval_in_minutes : null
-  retention_in_hours    = var.backup_type == "Periodic" ? var.backup_retention_in_hours : null
-  storage_redundancy    = var.backup_type == "Periodic" ? var.backup_storage_redundancy : null
-}
+
+  backup {
+    type                  = var.backup_type
+    tier                  = var.backup_type == "Continuous" ? var.backup_tier : null
+    interval_in_minutes   = var.backup_type == "Periodic" ? var.backup_interval_in_minutes : null
+    retention_in_hours    = var.backup_type == "Periodic" ? var.backup_retention_in_hours : null
+    storage_redundancy    = var.backup_type == "Periodic" ? var.backup_storage_redudancy : null
+  }
 
 consistency_policy {
   consistency_level      = var.consistency_level
@@ -121,20 +119,21 @@ depends_on = [
   azurerm_role_assignment.kv_user,
   azurerm_role_assignment.cosmos_kv
 ]
+}
 
 # Create Cosmos SQL Database
 resource "azurerm_cosmosdb_sql_database" "this" {
-  for_each = var.sql_dbs
-  name     = each.value.db_name
-}
-resource_group_name = azurerm_cosmosdb_account.db.resource_group_name
-account_name        = azurerm_cosmosdb_account.db.name
-throughput          = each.value.db_max_throughput != null ? null : each.value.db_throughput
+  for_each            = var.sql_dbs
+  name                = each.value.db_name
+  resource_group_name = azurerm_cosmosdb_account.db.resource_group_name
+  account_name        = azurerm_cosmosdb_account.db.name
+  throughput          = each.value.db_max_throughput != null ? null : each.value.db_throughput
 
-dynamic "autoscale_settings" {
-  for_each = each.value.db_max_throughput != null ? [1] : []
-  content {
-    max_throughput = each.value.db_max_throughput
+  dynamic "autoscale_settings" {
+    for_each = each.value.db_max_throughput != null ? [1] : []
+    content {
+      max_throughput = each.value.db_max_throughput
+    }
   }
 }
 
@@ -248,6 +247,7 @@ dynamic "conflict_resolution_policy" {
 depends_on = [
   azurerm_cosmosdb_sql_database.this
 ]
+}
 
 ##NT POLICY ENFORCEMENT
 # NT Policy - CosmosDB accounts should use private link
@@ -264,19 +264,19 @@ module "cosmos_private_endpoint" {
 
   # Current module behavior will make the embedded Python script attempt to hit "${resource_name}.${private_dns_zone_id}" -> which won't resolve
   # Unintended feature/bug
-}
-# THIS WAS ADDED
-resource_name                = azurerm_cosmosdb_account.db.name
-location                     = var.location
-subnet_id                    = var.subnet_id
-private_connection_resource_id = azurerm_cosmosdb_account.db.id
-subresource_name             = ["SQL"]
-private_dns_zone_id          = "privatelink.documents.azure.com"
-tags                         = var.tags
+  # THIS WAS ADDED
+  resource_name                = azurerm_cosmosdb_account.db.name
+  location                     = var.location
+  subnet_id                    = var.subnet_id
+  private_connection_resource_id = azurerm_cosmosdb_account.db.id
+  subresource_name             = ["SQL"]
+  private_dns_zone_id          = "privatelink.documents.azure.com"
+  tags                         = var.tags
 
-depends_on = [
-  azurerm_cosmosdb_account.db
-]
+  depends_on = [
+    azurerm_cosmosdb_account.db
+  ]
+}
 
 moved {
   from = module.cosmos_private_endpoint
@@ -312,4 +312,41 @@ resource "azurerm_monitor_diagnostic_setting" "this" {
     ]
   }
   # TODO remove when issue is fixed: https://github.com/Azure/azure-rest-api-specs/issues/9281
+}
+
+# Cosmos DB Monitoring Alerts
+# These alerts cover key performance, availability, and cost metrics for Document DB (SQL API)
+resource "azurerm_monitor_metric_alert" "cosmos_alerts" {
+  for_each = local.active_alerts
+
+  name                = "${var.cosmos_database_account_name}-${each.value.name}"
+  resource_group_name = var.resource_group_name
+  scopes              = [azurerm_cosmosdb_account.db.id]
+  description         = each.value.description
+  severity            = each.value.severity
+  frequency           = each.value.frequency
+  window_size         = each.value.window_size
+
+  criteria {
+    metric_namespace = each.value.metric_namespace
+    metric_name      = each.value.metric_name
+    aggregation      = each.value.aggregation
+    operator         = each.value.operator
+    threshold        = each.value.threshold
+
+    dynamic "dimension" {
+      for_each = each.value.dimensions != null ? each.value.dimensions : {}
+      content {
+        name     = dimension.key
+        operator = "Include"
+        values   = dimension.value
+      }
+    }
+  }
+
+  action {
+    action_group_id = var.action_group_id
+  }
+
+  tags = var.tags
 }
