@@ -52,7 +52,7 @@ resource "azurerm_cosmosdb_account" "db" {
   local_authentication_disabled      = var.local_authentication_disabled
   key_vault_key_id                   = var.key_vault_key_id
   burst_capacity_enabled             = var.burst_capacity_enabled
-
+  analytical_storage_enabled         = var.analytical_storage_schema_type != null ? true : false
   dynamic "analytical_storage" {
     for_each = var.analytical_storage_schema_type != null ? [var.analytical_storage_schema_type] : []
     content {
