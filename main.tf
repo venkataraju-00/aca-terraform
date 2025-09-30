@@ -111,8 +111,7 @@ dynamic "virtual_network_rule" {
 
 identity {
   type         = "UserAssigned"
-  identity_ids = [var.use_cosmosdb_user_assigned_identity_id ? var.cosmosdb_user_assigned_identity_id :
-  azurerm_user_assigned_identity.this[0].id]
+  identity_ids = [var.use_cosmosdb_user_assigned_identity_id ? var.cosmosdb_user_assigned_identity_id :  azurerm_user_assigned_identity.this[0].id]
 }
 
 depends_on = [
